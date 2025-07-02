@@ -1,0 +1,36 @@
+# Include base requirements
+-r requirements.txt
+
+# Testing
+pytest>=7.0.0
+pytest-cov>=3.0.0
+pytest-xdist>=2.5.0
+pytest-mock>=3.8.0
+
+# Code formatting and linting
+black>=22.0.0
+isort>=5.10.0
+flake8>=4.0.0
+mypy>=0.950
+pre-commit>=2.19.0
+
+# Documentation
+sphinx>=5.0.0
+sphinx-rtd-theme>=1.0.0
+sphinx-autodoc-typehints>=1.19.0
+myst-parser>=0.18.0
+
+# Development tools
+jupyter>=1.0.0
+ipykernel>=6.0.0
+ipywidgets>=7.7.0
+notebook>=6.4.0
+
+# Profiling and debugging
+line_profiler>=3.5.0
+memory_profiler>=0.60.0
+py-spy>=0.3.0
+
+# Build tools
+build>=0.8.0
+twine>=4.0.0
