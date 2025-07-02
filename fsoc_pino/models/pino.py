@@ -25,7 +25,7 @@ class PINO_FNO(nn.Module):
     
     def __init__(
         self,
-        input_dim: int = 5,
+        input_dim: int = 10,
         output_dim: int = 2,
         modes1: int = 12,
         modes2: int = 12,

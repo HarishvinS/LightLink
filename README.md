@@ -178,13 +178,14 @@ pytest --cov=fsoc_pino --cov-report=html
 pytest tests/test_simulation.py -v
 ```
 
-## Documentation
+## 📚 Documentation
 
 Comprehensive documentation is available in the `docs/` directory:
 - API Reference
 - Tutorials and Examples
 - Mathematical Background
 - Deployment Guide
+
 
 ## License
 

@@ -55,6 +55,36 @@ from typing import Tuple
     help="Wavelength range in m (min, max)"
 )
 @click.option(
+    "--pressure-hpa-range",
+    type=(float, float),
+    default=(950.0, 1050.0),
+    help="Atmospheric pressure range in hPa (min, max)"
+)
+@click.option(
+    "--temperature-celsius-range",
+    type=(float, float),
+    default=(0.0, 30.0),
+    help="Temperature range in Celsius (min, max)"
+)
+@click.option(
+    "--humidity-range",
+    type=(float, float),
+    default=(0.2, 0.9),
+    help="Relative humidity range (0-1) (min, max)"
+)
+@click.option(
+    "--altitude-tx-m-range",
+    type=(float, float),
+    default=(0.0, 100.0),
+    help="Transmitter altitude range in m (min, max)"
+)
+@click.option(
+    "--altitude-rx-m-range",
+    type=(float, float),
+    default=(0.0, 100.0),
+    help="Receiver altitude range in m (min, max)"
+)
+@click.option(
     "--grid-size",
     type=int,
     default=128,
@@ -84,10 +114,15 @@ def generate_dataset(
     output_dir: Path,
     num_samples: int,
     link_distance_range: Tuple[float, float],
-    visibility_range: Tuple[float, float], 
+    visibility_range: Tuple[float, float],
     temp_gradient_range: Tuple[float, float],
     beam_waist_range: Tuple[float, float],
     wavelength_range: Tuple[float, float],
+    pressure_hpa_range: Tuple[float, float],
+    temperature_celsius_range: Tuple[float, float],
+    humidity_range: Tuple[float, float],
+    altitude_tx_m_range: Tuple[float, float],
+    altitude_rx_m_range: Tuple[float, float],
     grid_size: int,
     parallel_jobs: int,
     sampling_method: str,
@@ -113,6 +148,11 @@ def generate_dataset(
     logger.info(f"Temperature gradient range: {temp_gradient_range} K/m")
     logger.info(f"Beam waist range: {beam_waist_range} m")
     logger.info(f"Wavelength range: {wavelength_range} m")
+    logger.info(f"Pressure range: {pressure_hpa_range} hPa")
+    logger.info(f"Temperature range: {temperature_celsius_range} °C")
+    logger.info(f"Humidity range: {humidity_range}")
+    logger.info(f"Transmitter altitude range: {altitude_tx_m_range} m")
+    logger.info(f"Receiver altitude range: {altitude_rx_m_range} m")
     logger.info(f"Grid size: {grid_size}")
     logger.info(f"Sampling method: {sampling_method}")
     logger.info(f"Parallel jobs: {parallel_jobs}")
@@ -130,7 +170,12 @@ def generate_dataset(
                 'wavelength': wavelength_range,
                 'beam_waist': beam_waist_range,
                 'visibility': visibility_range,
-                'temp_gradient': temp_gradient_range
+                'temp_gradient': temp_gradient_range,
+                'pressure_hpa': pressure_hpa_range,
+                'temperature_celsius': temperature_celsius_range,
+                'humidity': humidity_range,
+                'altitude_tx_m': altitude_tx_m_range,
+                'altitude_rx_m': altitude_rx_m_range
             }
         )
 
@@ -166,7 +211,12 @@ def generate_dataset(
                 'visibility': visibility_range,
                 'temp_gradient': temp_gradient_range,
                 'beam_waist': beam_waist_range,
-                'wavelength': wavelength_range
+                'wavelength': wavelength_range,
+                'pressure_hpa': pressure_hpa_range,
+                'temperature_celsius': temperature_celsius_range,
+                'humidity': humidity_range,
+                'altitude_tx_m': altitude_tx_m_range,
+                'altitude_rx_m': altitude_rx_m_range
             },
             'grid_size': grid_size,
             'sampling_method': sampling_method,

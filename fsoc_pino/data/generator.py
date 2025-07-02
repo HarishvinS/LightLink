@@ -168,12 +168,11 @@ class DatasetGenerator:
             # Create simulation configuration from dictionary
             config = SimulationConfig(
                 **params,
-                grid_size=self.grid_size,
-                save_intermediate=self.save_intermediate
+                grid_size=self.grid_size
             )
-            
+
             # Run simulation
-            simulator = FSOC_Simulator(config)
+            simulator = FSOC_Simulator(config, save_intermediate=self.save_intermediate)
             result = simulator.run_simulation()
             
             # Package results

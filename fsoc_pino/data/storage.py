@@ -162,14 +162,7 @@ class HDF5Manager:
         Returns:
             Tuple of (train_loader, val_loader)
         """
-        # Load all data
-        parameters, irradiance, field_real, field_imag = self.load_all_data()
-        
-        # Combine real and imaginary parts
-        targets = np.stack([field_real, field_imag], axis=1)  # Shape: (N, 2, H, W)
-        
-        # Create train/validation split
-        num_samples = len(parameters)
+        num_samples = self.total_samples
         indices = np.arange(num_samples)
         if shuffle:
             np.random.shuffle(indices)
@@ -178,9 +171,9 @@ class HDF5Manager:
         train_indices = indices[:split_idx]
         val_indices = indices[split_idx:]
         
-        # Create datasets
-        train_dataset = FSOCDataset(parameters[train_indices], targets[train_indices])
-        val_dataset = FSOCDataset(parameters[val_indices], targets[val_indices])
+        # Create datasets using the HDF5Manager instance
+        train_dataset = FSOCDataset(self, train_indices)
+        val_dataset = FSOCDataset(self, val_indices)
         
         # Create data loaders
         train_loader = DataLoader(
@@ -209,16 +202,27 @@ class HDF5Manager:
             num_samples: Number of samples to load (None for all)
             
         Returns:
-            Tuple of (parameters, targets)
+            Tuple of (parameters, targets) as numpy arrays
         """
-        parameters, irradiance, field_real, field_imag = self.load_all_data()
-        targets = np.stack([field_real, field_imag], axis=1)
+        # Create a dataset for the test data
+        test_dataset = FSOCDataset(self)
         
         if num_samples is not None:
-            parameters = parameters[:num_samples]
-            targets = targets[:num_samples]
+            # If a specific number of samples is requested, take a subset of indices
+            indices = np.arange(min(num_samples, test_dataset.total_samples))
+            test_dataset.indices = indices
+            test_dataset.total_samples = len(indices)
+
+        # Load data using a DataLoader to handle batching if needed
+        test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=0) # Use 0 workers for simplicity in test data loading
+
+        all_params = []
+        all_targets = []
+        for params, targets in test_loader:
+            all_params.append(params.cpu().numpy())
+            all_targets.append(targets.cpu().numpy())
         
-        return parameters, targets
+        return np.concatenate(all_params, axis=0), np.concatenate(all_targets, axis=0)
     
     def compute_statistics(self) -> Dict:
         """
@@ -273,28 +277,83 @@ class HDF5Manager:
 class FSOCDataset(Dataset):
     """
     PyTorch Dataset for FSOC simulation data.
+    Loads data directly from HDF5 files in a memory-efficient manner.
     """
     
-    def __init__(self, parameters: np.ndarray, targets: np.ndarray):
+    def __init__(self, hdf5_manager: HDF5Manager, indices: Optional[np.ndarray] = None):
         """
         Initialize dataset.
         
         Args:
-            parameters: Input parameters array of shape (N, num_params)
-            targets: Target fields array of shape (N, 2, H, W)
+            hdf5_manager: An instance of HDF5Manager to access data files.
+            indices: Optional array of indices to load a subset of the data (for train/val split).
         """
-        self.parameters = torch.from_numpy(parameters).float()
-        self.targets = torch.from_numpy(targets).float()
-    
+        self.hdf5_manager = hdf5_manager
+        self.indices = indices if indices is not None else np.arange(self.hdf5_manager.total_samples)
+        self.total_samples = len(self.indices)
+        
+        # Cache parameter names for consistent ordering
+        self.parameter_names = self.hdf5_manager.parameter_names
+
     def __len__(self) -> int:
-        return len(self.parameters)
+        return self.total_samples
     
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        return self.parameters[idx], self.targets[idx]
+        # Map the requested index to the global index in the HDF5 files
+        global_idx = self.indices[idx]
+
+        # Determine which batch file and index within that file the sample belongs to
+        # This requires knowing the cumulative sum of samples in each batch file.
+        # For simplicity, we'll iterate through files. For very large numbers of files,
+        # a more optimized lookup (e.g., binary search on cumulative sums) would be better.
+
+        current_sample_count = 0
+        for batch_file in self.hdf5_manager.batch_files:
+            with h5py.File(batch_file, 'r') as f:
+                file_num_samples = f['irradiance'].shape[0]
+
+                if global_idx < current_sample_count + file_num_samples:
+                    # Sample is in this file
+                    idx_in_file = global_idx - current_sample_count
+
+                    # Load parameters
+                    params_list = []
+                    for param_name in self.parameter_names:
+                        params_list.append(f[f'params/{param_name}'][idx_in_file])
+                    parameters = np.array(params_list, dtype=np.float32)
+
+                    # Load targets
+                    field_real = f['field_real'][idx_in_file]
+                    field_imag = f['field_imag'][idx_in_file]
+                    targets = np.stack([field_real, field_imag], axis=0) # Shape: (2, H, W)
+
+                    # Convert to tensors
+                    parameters_tensor = torch.from_numpy(parameters).float()
+                    targets_tensor = torch.from_numpy(targets).float()
+
+                    # Apply parameter normalization if set
+                    parameters_tensor = self._get_normalized_parameters(parameters_tensor)
+
+                    return parameters_tensor, targets_tensor
+
+                current_sample_count += file_num_samples
+
+        raise IndexError(f"Sample index {global_idx} out of bounds.")
     
     def get_parameter_stats(self) -> Dict:
-        """Get parameter statistics."""
-        params_np = self.parameters.numpy()
+        """Compute parameter statistics by loading all parameters (can be memory intensive)."""
+        # This method still loads all parameters to compute stats. For extremely large datasets,
+        # this would need to be done via a streaming approach or pre-computed and stored in metadata.
+        all_params = []
+        for batch_file in self.hdf5_manager.batch_files:
+            with h5py.File(batch_file, 'r') as f:
+                batch_params = []
+                for param_name in self.parameter_names:
+                    batch_params.append(f[f'params/{param_name}'][:])
+                all_params.append(np.stack(batch_params, axis=1))
+        
+        params_np = np.concatenate(all_params, axis=0)
+
         return {
             'mean': np.mean(params_np, axis=0),
             'std': np.std(params_np, axis=0),
@@ -306,15 +365,22 @@ class FSOCDataset(Dataset):
         """
         Normalize parameters to zero mean and unit variance.
         
-        Args:
-            mean: Parameter means (computed if None)
-            std: Parameter standard deviations (computed if None)
+        This method modifies the behavior of __getitem__ to return normalized parameters.
+        The normalization statistics are stored within the dataset instance.
         """
         if mean is None or std is None:
             stats = self.get_parameter_stats()
-            mean = stats['mean']
-            std = stats['std']
+            self._param_mean = torch.from_numpy(stats['mean']).float()
+            self._param_std = torch.from_numpy(stats['std']).float()
+        else:
+            self._param_mean = torch.from_numpy(mean).float()
+            self._param_std = torch.from_numpy(std).float()
         
-        self.parameters = (self.parameters - torch.from_numpy(mean).float()) / torch.from_numpy(std).float()
-        
-        return mean, std
+        self._normalize_params_on_get = True
+
+    def _get_normalized_parameters(self, parameters: torch.Tensor) -> torch.Tensor:
+        if hasattr(self, '_normalize_params_on_get') and self._normalize_params_on_get:
+            return (parameters - self._param_mean.to(parameters.device)) / (self._param_std.to(parameters.device) + 1e-8)
+        return parameters
+
+

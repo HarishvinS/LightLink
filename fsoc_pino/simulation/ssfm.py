@@ -34,25 +34,27 @@ class SplitStepFourierMethod:
     """
     
     def __init__(
-        self, 
-        link_params: LinkParameters, 
+        self,
+        link_params: LinkParameters,
         atm_params: AtmosphericParameters,
+        link_altitude_m: float = 0.0,
         save_intermediate: bool = False
     ):
         """
         Initialize SSFM solver.
-        
+
         Args:
             link_params: Link configuration parameters
             atm_params: Atmospheric parameters
+            link_altitude_m: Average link altitude in meters for Cn^2 modeling
             save_intermediate: Whether to save intermediate field states
         """
         self.link_params = link_params
         self.atm_params = atm_params
         self.save_intermediate = save_intermediate
-        
+
         # Initialize physics models
-        self.atm_effects = AtmosphericEffects(atm_params, link_params.wavelength)
+        self.atm_effects = AtmosphericEffects(atm_params, link_params.wavelength, link_altitude_m)
         self.pwe_solver = PWE_Solver(link_params, atm_params, self.atm_effects)
         
         # Precompute operators

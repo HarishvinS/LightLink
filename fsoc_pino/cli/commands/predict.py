@@ -49,6 +49,36 @@ from typing import Optional
     help="Wavelength in m"
 )
 @click.option(
+    "--pressure-hpa",
+    type=float,
+    default=1013.25,
+    help="Atmospheric pressure in hPa"
+)
+@click.option(
+    "--temperature-celsius",
+    type=float,
+    default=15.0,
+    help="Atmospheric temperature in Celsius"
+)
+@click.option(
+    "--humidity",
+    type=float,
+    default=0.5,
+    help="Relative humidity (0-1)"
+)
+@click.option(
+    "--altitude-tx-m",
+    type=float,
+    default=0.0,
+    help="Transmitter altitude in meters"
+)
+@click.option(
+    "--altitude-rx-m",
+    type=float,
+    default=0.0,
+    help="Receiver altitude in meters"
+)
+@click.option(
     "--output-file", "-o",
     type=click.Path(path_type=Path),
     help="Output file for prediction results (.h5 or .npz)"
@@ -84,6 +114,11 @@ def predict(
     temp_gradient: float,
     beam_waist: float,
     wavelength: float,
+    pressure_hpa: float,
+    temperature_celsius: float,
+    humidity: float,
+    altitude_tx_m: float,
+    altitude_rx_m: float,
     output_file: Optional[Path],
     device: str,
     grid_size: int,
@@ -106,20 +141,27 @@ def predict(
     logger.info(f"Temperature gradient: {temp_gradient} K/m")
     logger.info(f"Beam waist: {beam_waist} m")
     logger.info(f"Wavelength: {wavelength} m")
+    logger.info(f"Pressure: {pressure_hpa} hPa")
+    logger.info(f"Temperature: {temperature_celsius} °C")
+    logger.info(f"Humidity: {humidity}")
+    logger.info(f"Transmitter altitude: {altitude_tx_m} m")
+    logger.info(f"Receiver altitude: {altitude_rx_m} m")
     logger.info(f"Grid size: {grid_size}")
     
     try:
-        # Import required modules (will be implemented in later phases)
+        # Import required modules
         from fsoc_pino.models import PINO_FNO
         from fsoc_pino.utils.visualization import plot_irradiance_map
+        from fsoc_pino.simulation.physics import AtmosphericEffects
+        from fsoc_pino.simulation.ssfm import SimulationParameters
         import torch
         import numpy as np
-        
+
         # Determine device
         if device == "auto":
             device = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Using device: {device}")
-        
+
         # Load model
         logger.info("Loading model...")
         if model_path.suffix == ".onnx":
@@ -136,20 +178,25 @@ def predict(
             # Load PyTorch model
             model = PINO_FNO.load(model_path, device=device)
             model_type = "pytorch"
-        
-        # Prepare input parameters
+
+        # Prepare input parameters (must match the order used in training)
         input_params = np.array([
             link_distance,
-            visibility, 
-            temp_gradient,
+            wavelength,
             beam_waist,
-            wavelength
+            visibility,
+            temp_gradient,
+            pressure_hpa,
+            temperature_celsius,
+            humidity,
+            altitude_tx_m,
+            altitude_rx_m
         ], dtype=np.float32)
-        
+
         # Make prediction
         logger.info("Making prediction...")
         start_time = time.time()
-        
+
         if model_type == "onnx":
             # ONNX inference
             input_name = session.get_inputs()[0].name
@@ -160,38 +207,56 @@ def predict(
             with torch.no_grad():
                 input_tensor = torch.from_numpy(input_params).unsqueeze(0).to(device)
                 prediction = model(input_tensor).cpu().numpy()
-        
+
         inference_time = time.time() - start_time
         logger.info(f"Prediction completed in {inference_time:.4f} seconds")
-        
+
         # Extract real and imaginary parts
         field_real = prediction[0, 0, :, :]
         field_imag = prediction[0, 1, :, :]
-        
+
         # Compute irradiance
         irradiance = field_real**2 + field_imag**2
-        
+
         # Compute derived metrics if requested
         metrics = {}
         if compute_metrics:
-            logger.info("Computing derived metrics...")
-            
+            logger.info("Computing derived metrics using physics module...")
+
+            # Setup physics parameters for metric calculation
+            sim_params = SimulationParameters(
+                grid_size=grid_size,
+                link_distance=link_distance,
+                wavelength=wavelength,
+                beam_waist=beam_waist,
+                visibility=visibility,
+                temp_gradient=temp_gradient,
+                pressure_hpa=pressure_hpa,
+                temperature_celsius=temperature_celsius,
+                humidity=humidity,
+                altitude_tx_m=altitude_tx_m,
+                altitude_rx_m=altitude_rx_m,
+            )
+            atm_effects = AtmosphericEffects(sim_params)
+
             # Scintillation index
-            mean_intensity = np.mean(irradiance)
-            intensity_variance = np.var(irradiance)
-            scintillation_index = intensity_variance / (mean_intensity**2)
+            scintillation_index = atm_effects.compute_scintillation_index(irradiance)
             metrics['scintillation_index'] = scintillation_index
-            
-            # Simplified BER calculation (assuming OOK modulation)
-            # This is a simplified model - real implementation would be more complex
-            signal_power = np.sum(irradiance)
-            noise_power = 1e-12  # Simplified noise model
-            snr = signal_power / noise_power
-            ber = 0.5 * np.exp(-snr/2)  # Simplified BER formula
+
+            # Received Power
+            dx = sim_params.dx
+            received_power = np.sum(irradiance) * dx**2
+            metrics['received_power_watts'] = received_power
+
+            # Bit Error Rate (BER)
+            # Using a default noise power for this calculation, can be parameterized
+            noise_power = 1e-12  # W
+            ber = atm_effects.compute_bit_error_rate(received_power, scintillation_index, noise_power)
             metrics['bit_error_rate'] = ber
-            
+
             logger.info(f"Scintillation index: {scintillation_index:.6f}")
-            logger.info(f"Bit error rate: {ber:.2e}")
+            logger.info(f"Received Power: {received_power:.2e} W")
+            logger.info(f"Bit Error Rate: {ber:.2e}")
         
         # Save results if output file specified
         if output_file:
@@ -204,10 +269,15 @@ def predict(
                     f.create_dataset('field_real', data=field_real)
                     f.create_dataset('field_imag', data=field_imag)
                     f.attrs['link_distance'] = link_distance
+                    f.attrs['wavelength'] = wavelength
+                    f.attrs['beam_waist'] = beam_waist
                     f.attrs['visibility'] = visibility
                     f.attrs['temp_gradient'] = temp_gradient
-                    f.attrs['beam_waist'] = beam_waist
-                    f.attrs['wavelength'] = wavelength
+                    f.attrs['pressure_hpa'] = pressure_hpa
+                    f.attrs['temperature_celsius'] = temperature_celsius
+                    f.attrs['humidity'] = humidity
+                    f.attrs['altitude_tx_m'] = altitude_tx_m
+                    f.attrs['altitude_rx_m'] = altitude_rx_m
                     f.attrs['inference_time'] = inference_time
                     
                     if metrics:

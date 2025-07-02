@@ -13,6 +13,8 @@ import torch.nn.functional as F
 from typing import Tuple, Optional, Dict
 import numpy as np
 
+from ..simulation.physics import AtmosphericParameters, AtmosphericEffects
+
 
 class DataLoss(nn.Module):
     """
@@ -142,8 +144,11 @@ class PhysicsInformedLoss(nn.Module):
         """
         Compute refractive index perturbation δn from atmospheric parameters.
         
+        This function now uses a more detailed atmospheric model to compute δn,
+        consistent with the enhanced physics simulation.
+        
         Args:
-            params: Atmospheric parameters (batch, param_dim)
+            params: Input parameters (batch, param_dim)
             grid_shape: Spatial grid shape (H, W)
             
         Returns:
@@ -152,32 +157,86 @@ class PhysicsInformedLoss(nn.Module):
         batch_size = params.shape[0]
         H, W = grid_shape
         
-        # Extract atmospheric parameters
-        # Assuming params = [link_distance, wavelength, beam_waist, visibility, temp_gradient]
-        visibility = params[:, 3]  # km
-        temp_gradient = params[:, 4]  # K/m
+        # Extract parameters by their expected index after flattening the dictionary
+        # Order: link_distance, visibility, temp_gradient, beam_waist, wavelength,
+        #        pressure_hpa, temperature_celsius, humidity, altitude_tx_m, altitude_rx_m
         
-        # Simplified model for δn based on atmospheric conditions
-        # In practice, this would be more sophisticated
+        # Assuming the order of parameters in the input `params` tensor is:
+        # 0: link_distance
+        # 1: visibility
+        # 2: temp_gradient
+        # 3: beam_waist
+        # 4: wavelength
+        # 5: pressure_hpa
+        # 6: temperature_celsius
+        # 7: humidity
+        # 8: altitude_tx_m
+        # 9: altitude_rx_m
+
+        visibility = params[:, 1]  # km
+        temp_gradient = params[:, 2]  # K/m
+        wavelength = params[:, 4] # m
+        pressure_hpa = params[:, 5] # hPa
+        temperature_celsius = params[:, 6] # Celsius
+        humidity = params[:, 7] # 0-1
+        altitude_tx_m = params[:, 8] # m
+        altitude_rx_m = params[:, 9] # m
+
+        # Calculate average link altitude for Cn^2 modeling
+        link_altitude_m = (altitude_tx_m + altitude_rx_m) / 2
         
-        # Fog contribution (uniform across grid)
-        fog_factor = 1.0 / (visibility + 1e-6)  # Avoid division by zero
-        
-        # Turbulence contribution (random but correlated with temp_gradient)
-        turbulence_strength = temp_gradient * 1e-6
-        
-        # Create spatial perturbation
-        delta_n = torch.zeros(batch_size, 1, H, W, device=params.device)
+        # Initialize delta_n tensor
+        delta_n = torch.zeros(batch_size, 1, H, W, device=params.device, dtype=torch.float32)
         
         for i in range(batch_size):
-            # Uniform fog contribution
-            delta_n[i, 0] += fog_factor[i] * 1e-6
+            # Create AtmosphericParameters for the current sample
+            atm_params_sample = AtmosphericParameters(
+                visibility=visibility[i].item(),
+                temp_gradient=temp_gradient[i].item(),
+                pressure_hpa=pressure_hpa[i].item(),
+                temperature_celsius=temperature_celsius[i].item(),
+                humidity=humidity[i].item()
+            )
             
-            # Random turbulence (simplified)
-            if turbulence_strength[i] > 0:
-                noise = torch.randn(H, W, device=params.device) * turbulence_strength[i]
+            # Create AtmosphericEffects instance for the current sample
+            atm_effects_instance = AtmosphericEffects(
+                atm_params=atm_params_sample,
+                wavelength=wavelength[i].item(),
+                link_altitude_m=link_altitude_m[i].item()
+            )
+            
+            # Compute Cn^2
+            cn_squared = atm_effects_instance.compute_cn_squared()
+
+            # Turbulence contribution to delta_n
+            # For PINO, we need a differentiable representation of turbulence.
+            # A common simplification is to model delta_n as a random field
+            # whose variance is related to Cn^2.
+            # The magnitude of refractive index fluctuations (delta_n) is typically
+            # on the order of 10^-6 to 10^-8.
+            # We'll scale a random field by a factor derived from Cn^2.
+            # This is still a simplification for differentiability.
+            if cn_squared > 1e-18: # Only add noise if turbulence is significant
+                # A more physically inspired scaling for delta_n from Cn^2
+                # is complex. For a differentiable approximation, we can use
+                # a scaling factor that roughly maps Cn^2 to delta_n magnitude.
+                # Example: delta_n_rms ~ sqrt(Cn^2 * L^(1/3)) * C_const
+                # For simplicity, let's use a direct scaling of random noise.
+                # The constant 1e-4 is empirical to get realistic delta_n values.
+                turbulence_delta_n_magnitude = torch.tensor(float(cn_squared), device=params.device, dtype=torch.float32).sqrt() * 1e-4
+                noise = torch.randn(H, W, device=params.device, dtype=torch.float32) * turbulence_delta_n_magnitude
                 delta_n[i, 0] += noise
-        
+            
+            # Fog contribution to delta_n (real part of refractive index)
+            # Fog primarily causes absorption (imaginary part of refractive index).
+            # The real part change is usually very small.
+            # For the PWE, we need a real part. This is a simplification for PINO.
+            # We'll use a small, uniform real refractive index change related to visibility.
+            # This is a very simplified representation for the PINO loss.
+            # A more accurate approach would involve a complex refractive index in PWE.
+            fog_delta_n_magnitude = 1e-8 / (visibility[i] + 1e-6) # Empirical scaling, very small
+            delta_n[i, 0] += fog_delta_n_magnitude
+            
         return delta_n
     
     def forward(

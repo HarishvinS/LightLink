@@ -227,6 +227,11 @@ def create_fsoc_parameter_sampler(
     temp_gradient_range: Tuple[float, float] = (0.01, 0.2),
     beam_waist_range: Tuple[float, float] = (0.02, 0.10),
     wavelength_range: Tuple[float, float] = (850e-9, 1550e-9),
+    pressure_hpa_range: Tuple[float, float] = (950.0, 1050.0),
+    temperature_celsius_range: Tuple[float, float] = (0.0, 30.0),
+    humidity_range: Tuple[float, float] = (0.2, 0.9),
+    altitude_tx_m_range: Tuple[float, float] = (0.0, 100.0),
+    altitude_rx_m_range: Tuple[float, float] = (0.0, 100.0),
     method: str = "latin_hypercube",
     seed: Optional[int] = None
 ) -> ParameterSampler:
@@ -239,6 +244,11 @@ def create_fsoc_parameter_sampler(
         temp_gradient_range: Temperature gradient range in K/m
         beam_waist_range: Beam waist range in m
         wavelength_range: Wavelength range in m
+        pressure_hpa_range: Pressure range in hPa
+        temperature_celsius_range: Temperature range in Celsius
+        humidity_range: Humidity range (0-1)
+        altitude_tx_m_range: Transmitter altitude range in meters
+        altitude_rx_m_range: Receiver altitude range in meters
         method: Sampling method
         seed: Random seed
         
@@ -252,5 +262,10 @@ def create_fsoc_parameter_sampler(
     sampler.add_parameter("temp_gradient", *temp_gradient_range)
     sampler.add_parameter("beam_waist", *beam_waist_range)
     sampler.add_parameter("wavelength", *wavelength_range)
+    sampler.add_parameter("pressure_hpa", *pressure_hpa_range)
+    sampler.add_parameter("temperature_celsius", *temperature_celsius_range)
+    sampler.add_parameter("humidity", *humidity_range)
+    sampler.add_parameter("altitude_tx_m", *altitude_tx_m_range)
+    sampler.add_parameter("altitude_rx_m", *altitude_rx_m_range)
     
     return sampler

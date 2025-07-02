@@ -11,6 +11,8 @@ This directory contains comprehensive documentation for the FSOC-PINO project.
 - `examples/` - Example usage and case studies
 - `theory/` - Mathematical background and theory
 
+**Note to maintainers:** The underlying physics models and environmental variables have been significantly enhanced. Please ensure the documentation within `api/`, `tutorials/`, `examples/`, and `theory/` is updated to reflect these changes, including new parameters, updated mathematical formulations, and revised examples.
+
 ### Quick Start
 
 See the main README.md in the project root for installation and basic usage instructions.

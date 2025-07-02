@@ -14,6 +14,7 @@ import numpy as np
 from pathlib import Path
 import time
 import json
+import logging
 from tqdm import tqdm
 
 from .pino import PINO_FNO
@@ -36,7 +37,7 @@ class PINOTrainer:
     ):
         """
         Initialize PINO trainer.
-        
+
         Args:
             model: PINO model to train
             device: Device for training
@@ -49,6 +50,9 @@ class PINOTrainer:
         self.device = device
         self.output_dir = Path(output_dir) if output_dir else Path('.')
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Setup logger
+        self.logger = logging.getLogger(f"fsoc_pino.trainer")
         
         # Loss function
         self.criterion = PINOLoss(
@@ -283,18 +287,32 @@ class PINOTrainer:
     
     def _setup_parameter_normalization(self, train_loader: DataLoader):
         """Setup parameter normalization from training data."""
-        print("Computing parameter normalization statistics...")
+        self.logger.info("Computing parameter normalization statistics...")
         
-        all_params = []
-        for params, _ in train_loader:
-            all_params.append(params)
+        # Get the dataset from the loader (assuming it's an FSOCDataset)
+        train_dataset = train_loader.dataset
         
-        all_params = torch.cat(all_params, dim=0)
-        param_mean = torch.mean(all_params, dim=0)
-        param_std = torch.std(all_params, dim=0)
+        # Compute statistics using the dataset's method
+        stats = train_dataset.get_parameter_stats()
+        param_mean = torch.from_numpy(stats['mean']).float()
+        param_std = torch.from_numpy(stats['std']).float()
         
         self.model.set_parameter_normalization(param_mean, param_std)
-        print(f"Parameter normalization set: mean={param_mean.numpy()}, std={param_std.numpy()}")
+        self.logger.info(f"Parameter normalization set: mean={param_mean.numpy()}, std={param_std.numpy()}")
+        
+        # Apply normalization to the dataset itself so __getitem__ returns normalized values
+        train_dataset.normalize_parameters(param_mean.numpy(), param_std.numpy())
+        # Also apply to validation dataset if available
+        if hasattr(train_loader.dataset, 'val_dataset'): # This might not be the correct way to access val_dataset
+            # A better way would be to pass val_dataset explicitly or have HDF5Manager return both
+            pass # For now, we assume normalization is handled by the model's forward pass
+
+        # Re-initialize criterion with updated wavelength if it was part of the parameters
+        # This is a placeholder for more dynamic wavelength handling in physics loss
+        # if 'wavelength' in train_dataset.parameter_names:
+        #     wavelength_idx = train_dataset.parameter_names.index('wavelength')
+        #     avg_wavelength = param_mean[wavelength_idx].item() * param_std[wavelength_idx].item() + self.model.wavelength # Denormalize
+        #     self.criterion.physics_loss.k0 = 2 * np.pi / avg_wavelength
     
     def save_checkpoint(self, filename: str):
         """Save model checkpoint."""

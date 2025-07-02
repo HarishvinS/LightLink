@@ -28,10 +28,11 @@ class SimulationConfig:
     # Optional parameters with defaults
     grid_size: int = 128
     grid_width: float = 0.5  # m
-    pressure: float = 101325.0  # Pa
-    temperature: float = 288.15  # K
+    pressure_hpa: float = 1013.25  # hPa
+    temperature_celsius: float = 15.0  # Celsius
     humidity: float = 0.5  # 0-1
-    save_intermediate: bool = False
+    altitude_tx_m: float = 0.0  # Transmitter altitude in meters
+    altitude_rx_m: float = 0.0  # Receiver altitude in meters
     
     def to_dict(self) -> Dict:
         """Convert to dictionary."""
@@ -63,18 +64,20 @@ class FSOC_Simulator:
     using the Split-Step Fourier Method to solve the Parabolic Wave Equation.
     """
     
-    def __init__(self, config: Optional[SimulationConfig] = None, **kwargs):
+    def __init__(self, config: Optional[SimulationConfig] = None, save_intermediate: bool = False, **kwargs):
         """
         Initialize FSOC simulator.
-        
+
         Args:
             config: Simulation configuration object
+            save_intermediate: Whether to save intermediate field states during propagation
             **kwargs: Configuration parameters (alternative to config object)
         """
         if config is None:
             config = SimulationConfig(**kwargs)
-        
+
         self.config = config
+        self.save_intermediate = save_intermediate
         self._validate_config()
         
         # Create parameter objects
@@ -83,22 +86,27 @@ class FSOC_Simulator:
             wavelength=config.wavelength,
             beam_waist=config.beam_waist,
             grid_size=config.grid_size,
-            grid_width=config.grid_width
+            grid_width=config.grid_width,
+            altitude_tx_m=config.altitude_tx_m,
+            altitude_rx_m=config.altitude_rx_m
         )
         
         self.atm_params = AtmosphericParameters(
             visibility=config.visibility,
             temp_gradient=config.temp_gradient,
-            pressure=config.pressure,
-            temperature=config.temperature,
+            pressure_hpa=config.pressure_hpa,
+            temperature_celsius=config.temperature_celsius,
             humidity=config.humidity
         )
         
         # Initialize SSFM solver
+        # Pass the average altitude to AtmosphericEffects for Cn^2 modeling
+        average_altitude_m = (config.altitude_tx_m + config.altitude_rx_m) / 2
         self.ssfm = SplitStepFourierMethod(
             self.link_params,
             self.atm_params,
-            save_intermediate=config.save_intermediate
+            link_altitude_m=average_altitude_m,
+            save_intermediate=self.save_intermediate
         )
         
     def _validate_config(self):
@@ -122,12 +130,14 @@ class FSOC_Simulator:
             raise ValueError("Visibility must be positive")
         if config.temp_gradient < 0:
             raise ValueError("Temperature gradient must be non-negative")
-        if config.pressure <= 0:
-            raise ValueError("Pressure must be positive")
-        if config.temperature <= 0:
-            raise ValueError("Temperature must be positive")
+        if config.pressure_hpa <= 0:
+            raise ValueError("Pressure (hPa) must be positive")
+        if config.temperature_celsius < -273.15:
+            raise ValueError("Temperature (Celsius) cannot be below absolute zero (-273.15)")
         if not 0 <= config.humidity <= 1:
             raise ValueError("Humidity must be between 0 and 1")
+        if config.altitude_tx_m < 0 or config.altitude_rx_m < 0:
+            raise ValueError("Altitudes must be non-negative")
     
     def run_simulation(self) -> PropagationResult:
         """
@@ -252,50 +262,4 @@ class FSOC_Simulator:
         
         print(f"Results saved to: {output_dir}")
     
-    @classmethod
-    def create_parameter_sweep(
-        cls,
-        base_config: SimulationConfig,
-        parameter_ranges: Dict[str, Tuple[float, float]],
-        num_samples: int,
-        sampling_method: str = "latin_hypercube"
-    ) -> List[SimulationConfig]:
-        """
-        Create a parameter sweep for dataset generation.
-        
-        Args:
-            base_config: Base configuration
-            parameter_ranges: Dictionary of parameter ranges
-            num_samples: Number of samples to generate
-            sampling_method: Sampling method
-            
-        Returns:
-            List of simulation configurations
-        """
-        if sampling_method == "latin_hypercube":
-            from scipy.stats import qmc
-            
-            # Create Latin Hypercube sampler
-            sampler = qmc.LatinHypercube(d=len(parameter_ranges))
-            samples = sampler.random(n=num_samples)
-            
-        elif sampling_method == "uniform":
-            samples = np.random.uniform(0, 1, (num_samples, len(parameter_ranges)))
-            
-        else:
-            raise ValueError(f"Unknown sampling method: {sampling_method}")
-        
-        # Scale samples to parameter ranges
-        configs = []
-        param_names = list(parameter_ranges.keys())
-        
-        for sample in samples:
-            config_dict = base_config.to_dict()
-            
-            for i, param_name in enumerate(param_names):
-                min_val, max_val = parameter_ranges[param_name]
-                config_dict[param_name] = min_val + sample[i] * (max_val - min_val)
-            
-            configs.append(SimulationConfig.from_dict(config_dict))
-        
-        return configs
+    

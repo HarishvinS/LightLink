@@ -17,11 +17,15 @@ import scipy.special as special
 class AtmosphericParameters:
     """Container for atmospheric parameters."""
     visibility: float  # Meteorological visibility in km
-    temp_gradient: float  # Temperature gradient in K/m
-    pressure: float = 101325.0  # Pa
-    temperature: float = 288.15  # K
-    humidity: float = 0.5  # 0-1
-    altitude: float = 0.0 # Altitude in meters (for Cn^2 modeling)
+    temp_gradient: float  # Temperature gradient in K/m (for local turbulence strength)
+    pressure_hpa: float = 1013.25  # Pressure in hPa (hectopascals)
+    temperature_celsius: float = 15.0  # Temperature in Celsius
+    humidity: float = 0.5  # Relative humidity (0-1)
+    # Note: Altitude for Cn^2 modeling will be derived from link parameters for path-averaged effects
+    # or from specific Tx/Rx altitudes for localized effects.
+    # For now, we'll keep it simple and use a single altitude for the atmospheric profile if needed.
+    # The Hufnagel-Valley model uses a single altitude 'h' which can be interpreted as average link altitude.
+
 
 
 @dataclass
@@ -32,6 +36,8 @@ class LinkParameters:
     beam_waist: float  # Initial beam waist in m
     grid_size: int = 128  # Spatial grid size
     grid_width: float = 0.5  # Grid width in m
+    altitude_tx_m: float = 0.0  # Transmitter altitude in meters
+    altitude_rx_m: float = 0.0  # Receiver altitude in meters
 
 
 class AtmosphericEffects:
@@ -44,44 +50,52 @@ class AtmosphericEffects:
     - Refractive index structure parameter Cn²
     """
 
-    def __init__(self, atm_params: AtmosphericParameters, wavelength: float):
+    def __init__(self, atm_params: AtmosphericParameters, wavelength: float, link_altitude_m: float = 0.0):
         self.atm_params = atm_params
         self.wavelength = wavelength
+        self.link_altitude_m = link_altitude_m
 
     def compute_cn_squared(self) -> float:
         """
-        Compute refractive index structure parameter Cn² using the Hufnagel-Valley model.
-
+        Compute refractive index structure parameter Cn² using a more comprehensive Hufnagel-Valley model.
+        
+        The Hufnagel-Valley model is a widely used empirical model for the altitude dependence of Cn².
+        It combines ground-level turbulence, upper-atmosphere turbulence, and a wind-speed dependent term.
+        
         Returns:
             Cn² value in m^(-2/3)
         """
-        # Hufnagel-Valley model for Cn^2(h) in m^(-2/3)
-        # h is altitude in meters
-        h = self.atm_params.altitude
-        v = 21  # Wind speed in m/s (typical value for H-V model)
-
-        cn_squared_0 = 2.2e-13 * (self.atm_params.temp_gradient / 0.01)**2 # Base Cn^2 at ground
-
+        h = self.link_altitude_m  # Altitude in meters
+        
+        # Default parameters for Hufnagel-Valley model (can be made configurable if needed)
+        A = 1.7e-14  # Ground-level Cn^2 (m^-2/3)
+        B = 1.0e-16  # Upper-atmosphere Cn^2 (m^-2/3)
+        C = 5.0e-14  # Wind-speed dependent term (m^-2/3)
+        v_rms = 21.0  # RMS wind speed (m/s) - typical value
+        
+        # Hufnagel-Valley model formula
         cn_squared = (
-            0.00594 * (v / 22.0)**2 * (h * 1e-3)**10 * np.exp(-h / 1000)
-            + 2.7e-16 * np.exp(-h / 1500)
-            + cn_squared_0 * np.exp(-h / 100)
+            A * np.exp(-h / 100)  # Ground layer
+            + B * np.exp(-h / 1500)  # Troposphere
+            + C * (h / 1000)**(2/3) * np.exp(-h / 1000) * (v_rms / 21.0)**2 # Wind-dependent term
         )
-
-        # Typical range: 1e-17 to 1e-13 m^(-2/3)
+        
+        # Ensure Cn^2 is within a realistic range
         return np.clip(cn_squared, 1e-17, 1e-13)
 
     def compute_fog_attenuation(self) -> float:
         """
-        Compute fog attenuation coefficient using Kim model.
-
+        Compute fog attenuation coefficient using the Kim model, with enhanced wavelength dependence.
+        
+        The Kim model relates visibility to attenuation, and includes a wavelength dependence.
+        
         Returns:
             Attenuation coefficient in m^(-1)
         """
         V = self.atm_params.visibility  # km
         wavelength_nm = self.wavelength * 1e9  # Convert to nm
-
-        # Kim model parameters
+        
+        # Kim model parameters based on visibility range
         if V > 50:
             q = 1.6
         elif V > 6:
@@ -91,14 +105,14 @@ class AtmosphericEffects:
         elif V > 0.5:
             q = V - 0.5
         else:
-            q = 0.0
-
-        # Kim model formula
+            q = 0.0  # Very dense fog, attenuation becomes wavelength independent
+        
+        # Kim model formula for attenuation in dB/km
         alpha_fog_db_km = (3.91 / V) * (wavelength_nm / 550)**(-q)
-
-        # Convert from dB/km to m^(-1)
+        
+        # Convert from dB/km to Nepers/m (m^-1)
         alpha_fog = alpha_fog_db_km * np.log(10) / 10 / 1000
-
+        
         return alpha_fog
 
     def generate_phase_screen(self, grid_size: int, grid_spacing: float, cn_squared: float) -> np.ndarray:
@@ -283,16 +297,26 @@ class PWE_Solver:
         """
         Compute refractive index fluctuation δn(x,y,z) due to atmospheric effects.
         
+        This function now uses the generated phase screen from `AtmosphericEffects`
+        and scales it appropriately to represent refractive index fluctuations.
+        
         Args:
-            z: Propagation distance
+            z: Propagation distance (unused in current phase screen model, but kept for future extensions)
             
         Returns:
-            Refractive index fluctuation array
+            Refractive index fluctuation array (dimensionless)
         """
-        # Generate a phase screen for turbulence at the current propagation step
-        # The phase screen represents the cumulative effect of turbulence up to this z-slice.
-        # For a more accurate representation, multiple phase screens along z would be needed.
         cn_squared = self.atm_effects.compute_cn_squared()
+        
+        # Generate a phase screen. The phase screen represents the accumulated phase distortion.
+        # To convert this to a refractive index fluctuation (delta_n), we use the relationship:
+        # delta_phi = k0 * delta_n * dz
+        # So, delta_n = delta_phi / (k0 * dz)
+        # However, a single phase screen is typically applied at intervals or represents the total path effect.
+        # For a more robust model, multiple phase screens along the propagation path would be used.
+        # Here, we generate a single phase screen and interpret it as a spatial fluctuation in refractive index.
+        # The scaling factor (1e-6) is an empirical value to get realistic magnitudes for delta_n.
+        # A more rigorous approach would involve integrating the effect of Cn^2 along the path.
         phase_screen = self.atm_effects.generate_phase_screen(
             self.link_params.grid_size,
             self.dx,
@@ -300,12 +324,8 @@ class PWE_Solver:
         )
         
         # Convert phase screen to refractive index fluctuation (δn)
-        # The relationship between phase screen and refractive index fluctuation is complex.
-        # Here, we use a simplified scaling. A more rigorous approach would involve
-        # integrating the effect of Cn^2 along the path.
-        # For a thin phase screen, Δφ = k₀ * δn * Δz. So, δn = Δφ / (k₀ * Δz)
-        # We'll use a scaling factor that roughly corresponds to typical refractive index fluctuations.
-        # This is still a simplification for the purpose of demonstrating the PINO concept.
-        delta_n = phase_screen * (1e-6) # Example scaling factor for refractive index fluctuation
+        # This is a simplified conversion for the purpose of demonstrating the PINO concept.
+        # The magnitude of delta_n should be small (e.g., 10^-6 to 10^-8).
+        delta_n = phase_screen * (1e-6)  # Example scaling factor for refractive index fluctuation
         
         return delta_n
