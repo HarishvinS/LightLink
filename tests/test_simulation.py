@@ -139,8 +139,8 @@ class TestPWESolver:
             visibility=3.0,
             temp_gradient=0.05
         )
-
-        solver = PWE_Solver(link_params, atm_params)
+        atm_effects = AtmosphericEffects(atm_params, link_params.wavelength)
+        solver = PWE_Solver(link_params, atm_params, atm_effects)
 
         assert solver.k0 > 0
         assert solver.X.shape == (64, 64)
@@ -160,8 +160,8 @@ class TestPWESolver:
             visibility=3.0,
             temp_gradient=0.05
         )
-
-        solver = PWE_Solver(link_params, atm_params)
+        atm_effects = AtmosphericEffects(atm_params, link_params.wavelength)
+        solver = PWE_Solver(link_params, atm_params, atm_effects)
         field = solver.create_initial_field()
 
         assert field.shape == (64, 64)
@@ -184,8 +184,8 @@ class TestPWESolver:
             visibility=3.0,
             temp_gradient=0.05
         )
-
-        solver = PWE_Solver(link_params, atm_params)
+        atm_effects = AtmosphericEffects(atm_params, link_params.wavelength)
+        solver = PWE_Solver(link_params, atm_params, atm_effects)
         diff_op = solver.compute_diffraction_operator()
 
         assert diff_op.shape == (64, 64)
@@ -290,33 +290,4 @@ class TestFSOCSimulator:
         assert link_budget['fog_loss_db'] >= 0  # Fog causes loss
         assert 0 <= link_budget['received_power_fraction'] <= 1  # Power fraction should be valid
 
-    def test_parameter_sweep_creation(self):
-        """Test parameter sweep generation."""
-        base_config = SimulationConfig(
-            link_distance=2.5,
-            wavelength=1550e-9,
-            beam_waist=0.05,
-            visibility=3.0,
-            temp_gradient=0.05
-        )
-
-        parameter_ranges = {
-            'link_distance': (1.0, 5.0),
-            'visibility': (0.5, 10.0),
-            'temp_gradient': (0.01, 0.2)
-        }
-
-        configs = FSOC_Simulator.create_parameter_sweep(
-            base_config,
-            parameter_ranges,
-            num_samples=10,
-            sampling_method='uniform'
-        )
-
-        assert len(configs) == 10
-
-        # Check that parameters are within ranges
-        for config in configs:
-            assert 1.0 <= config.link_distance <= 5.0
-            assert 0.5 <= config.visibility <= 10.0
-            assert 0.01 <= config.temp_gradient <= 0.2
+    

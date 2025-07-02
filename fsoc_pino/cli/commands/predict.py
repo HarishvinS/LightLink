@@ -92,8 +92,8 @@ from typing import Optional
 @click.option(
     "--grid-size",
     type=int,
-    default=128,
-    help="Output grid size"
+    default=64,
+    help="Output grid size (must match model training grid size)"
 )
 @click.option(
     "--compute-metrics",
@@ -152,8 +152,8 @@ def predict(
         # Import required modules
         from fsoc_pino.models import PINO_FNO
         from fsoc_pino.utils.visualization import plot_irradiance_map
-        from fsoc_pino.simulation.physics import AtmosphericEffects
-        from fsoc_pino.simulation.ssfm import SimulationParameters
+        from fsoc_pino.simulation.physics import AtmosphericEffects, LinkParameters, AtmosphericParameters
+        from fsoc_pino.simulation.ssfm import SplitStepFourierMethod
         import torch
         import numpy as np
 
@@ -214,9 +214,10 @@ def predict(
         # Extract real and imaginary parts
         field_real = prediction[0, 0, :, :]
         field_imag = prediction[0, 1, :, :]
+        predicted_field = field_real + 1j * field_imag
 
         # Compute irradiance
-        irradiance = field_real**2 + field_imag**2
+        irradiance = np.abs(predicted_field)**2
 
         # Compute derived metrics if requested
         metrics = {}
@@ -224,39 +225,60 @@ def predict(
             logger.info("Computing derived metrics using physics module...")
 
             # Setup physics parameters for metric calculation
-            sim_params = SimulationParameters(
-                grid_size=grid_size,
-                link_distance=link_distance,
+            link_params = LinkParameters(
+                distance=link_distance,
                 wavelength=wavelength,
                 beam_waist=beam_waist,
+                grid_size=grid_size,
+                altitude_tx_m=altitude_tx_m,
+                altitude_rx_m=altitude_rx_m,
+            )
+            atm_params = AtmosphericParameters(
                 visibility=visibility,
                 temp_gradient=temp_gradient,
                 pressure_hpa=pressure_hpa,
                 temperature_celsius=temperature_celsius,
                 humidity=humidity,
-                altitude_tx_m=altitude_tx_m,
-                altitude_rx_m=altitude_rx_m,
             )
-            atm_effects = AtmosphericEffects(sim_params)
+            average_altitude_m = (altitude_tx_m + altitude_rx_m) / 2
+            atm_effects = AtmosphericEffects(atm_params, link_params.wavelength, average_altitude_m)
+            ssfm_solver = SplitStepFourierMethod(link_params, atm_params, link_altitude_m=average_altitude_m)
+
 
             # Scintillation index
             scintillation_index = atm_effects.compute_scintillation_index(irradiance)
             metrics['scintillation_index'] = scintillation_index
 
             # Received Power
-            dx = sim_params.dx
+            dx = link_params.grid_width / grid_size
             received_power = np.sum(irradiance) * dx**2
             metrics['received_power_watts'] = received_power
 
             # Bit Error Rate (BER)
-            # Using a default noise power for this calculation, can be parameterized
             noise_power = 1e-12  # W
             ber = atm_effects.compute_bit_error_rate(received_power, scintillation_index, noise_power)
             metrics['bit_error_rate'] = ber
 
+            # Actionable Metrics
+            beam_params = ssfm_solver.compute_beam_parameters(predicted_field)
+            initial_field = ssfm_solver.pwe_solver.create_initial_field()
+            initial_params = ssfm_solver.compute_beam_parameters(initial_field)
+
+            beam_wander = np.sqrt(beam_params['x_centroid']**2 + beam_params['y_centroid']**2)
+            metrics['beam_wander_m'] = beam_wander
+
+            spreading_x = beam_params['beam_width_x'] / initial_params['beam_width_x']
+            spreading_y = beam_params['beam_width_y'] / initial_params['beam_width_y']
+            metrics['beam_spreading_ratio_x'] = spreading_x
+            metrics['beam_spreading_ratio_y'] = spreading_y
+
+
             logger.info(f"Scintillation index: {scintillation_index:.6f}")
             logger.info(f"Received Power: {received_power:.2e} W")
             logger.info(f"Bit Error Rate: {ber:.2e}")
+            logger.info(f"Beam Wander: {beam_wander * 100:.2f} cm")
+            logger.info(f"Beam Spreading (X): {spreading_x:.2f}x")
+            logger.info(f"Beam Spreading (Y): {spreading_y:.2f}x")
         
         # Save results if output file specified
         if output_file:

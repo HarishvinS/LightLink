@@ -177,22 +177,13 @@ This document summarizes the successful implementation of the FSOC-PINO (Free Sp
 pip install -e .
 
 # Generate a small dataset
-fso-pino-cli generate-dataset \
-    --output-dir ./data/training \
-    --num-samples 100 \
-    --grid-size 64 \
-    --link-distance-range 1.0 5.0 \
-    --visibility-range 0.5 10.0 \
-    --temp-gradient-range 0.01 0.2 \
-    --beam-waist-range 0.02 0.10 \
-    --wavelength-range 850e-9 1550e-9 \
-    --parallel-jobs 4
+fso-pino-cli generate-dataset --output-dir ./data/training --num-samples 100 --grid-size 64 --link-distance-range 1.0 5.0 --visibility-range 0.5 10.0 --temp-gradient-range 0.01 0.2 --beam-waist-range 0.02 0.10 --wavelength-range 850e-9 1550e-9 --parallel-jobs 4
 
 # Train a model
 fso-pino-cli train --dataset-path data --output-dir models --epochs 50
 
 # Make predictions
-fso-pino-cli predict --model-path ./models/best_model.pth --link-distance 2.5 --visibility 3.0 --temp-gradient 0.05 --beam-waist 0.05 --wavelength 1550e-9 --pressure-hpa 1013.25 --temperature-celsius 15.0 --humidity 0.5 --altitude-tx-m 10.0 --altitude-rx-m 10.0
+fso-pino-cli predict --model-path ./models/best_model.pth --link-distance 2.5 --visibility 3.0 --temp-gradient 0.05 --beam-waist 0.05 --wavelength 1550e-9 --pressure-hpa 1013.25 --temperature-celsius 15.0 --humidity 0.5 --altitude-tx-m 10.0 --altitude-rx-m 10.0 --compute-metrics
 ```
 
 ### Development Setup
@@ -208,10 +199,4 @@ pytest tests/ -v
 # Run demo
 python test_simulation_demo.py
 ```
-
-## 📝 Conclusion
-
-The FSOC-PINO project has been successfully implemented with all core functionality working as designed. The system provides a complete pipeline from physics simulation to machine learning prediction, with a user-friendly CLI interface. The implementation demonstrates the feasibility of using Physics-Informed Neural Operators for real-time FSOC link performance prediction.
-
-The project is ready for deployment and further development, with clear paths for optimization and enhancement identified.
 
