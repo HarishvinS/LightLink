@@ -1,12 +1,12 @@
-# FSOC-PINO: Physics-Informed Neural Operator for FSOC Link Performance Prediction
-
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+# Lightlink: Physics-Informed Neural Operators for FSOC Link Performance Prediction
 
 ## 1. Project Goal
 
-The FSOC-PINO project provides a toolkit for simulating Free Space Optical Communication (FSOC) links and training Physics-Informed Neural Operators (PINOs) for real-time performance prediction on edge devices. The primary goal is to bypass computationally expensive physics simulations by using a trained neural operator that can predict FSOC link performance under various atmospheric conditions in near real-time. Long-term vision involves deploying these models on edge devices to enable real-time monitoring and optimization of FSOC links without relying on cloud-based simulations.
+LightLink is a toolkit for utilzing and training Physics-Informed Neural Operators (PINOs) for real-time performance prediction on edge computing devices. Currently, the system generates synthetic data using high fidelity physics simulations. This data is used to train PINOs that can predict FSOC link behaviour and performance in real time.
+
+Physics Informed Neural Operators are neural operators that adhere to physics at greater rate than traditional machine learning methods. They are able to accomplish this as they are designed to learn mappings between funciton spaces while penalizing results that violate the underlying physics equations during training. This allows them to accurate predictions even on limited datasets or inputs as they take into account the underlying physics of the system.
+
+The goal of this project is to provide a tool to efficiently build, train, and deploy PINOs to edge-computing devices (e.g Raspberry Pi, NVIDIA Jetson Nano) located at physical FSOC stations to optimize their operation in real time. Furthermore, a network of edge devices, connected by a protocol such as LoRaWAN, can coordinate and correct for overall optimized data transmission rates. 
 
 ## 2. Key Features
 
@@ -151,4 +151,5 @@ pytest --cov=fsoc_pino --cov-report=html
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 8. Contact
-For questions or collaborations, please reach out to [Harishvin Sasikumar](mailto:harishsasi17@gmail.com).
+Hey! This project was developed by me: Harishvin Sasikumar! Check out my website [here](https://harishvin.framer.website).
+Email me at [harishsasi17@gmail.com](mailto:harishsasi17@gmail.com)
