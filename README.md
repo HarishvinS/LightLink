@@ -1,6 +1,6 @@
 # Lightlink: Physics-Informed Neural Operators for FSOC Link Performance Prediction
 
-## 1. Project Goal
+## Overview
 
 LightLink is a toolkit for utilzing and training Physics-Informed Neural Operators (PINOs) for real-time performance prediction on edge computing devices. Currently, the system generates synthetic data using high fidelity physics simulations. This data is used to train PINOs that can predict FSOC link behaviour and performance in real time.
 
@@ -8,7 +8,7 @@ Physics Informed Neural Operators are neural operators that adhere to physics at
 
 The goal of this project is to provide a tool to efficiently build, train, and deploy PINOs to edge-computing devices (e.g Raspberry Pi, NVIDIA Jetson Nano) located at physical FSOC stations to optimize their operation in real time. Furthermore, a network of edge devices, connected by a protocol such as LoRaWAN, can coordinate and correct for overall optimized data transmission rates. 
 
-## 2. Key Features
+## Key Features
 
 - **High-Fidelity Physics Simulation**: Accurate beam propagation modeling using the Parabolic Wave Equation (PWE) and Split-Step Fourier Method (SSFM).
 - **Atmospheric Effects Modeling**: Accounts for turbulence (from temperature gradients) and fog attenuation.
@@ -17,7 +17,7 @@ The goal of this project is to provide a tool to efficiently build, train, and d
 - **Comprehensive CLI**: An easy-to-use command-line interface for dataset generation, model training, prediction, and benchmarking.
 - **Python API**: A full-featured Python API for programmatic control and integration.
 
-## 3. Installation
+## Installation
 
 ### Prerequisites
 - Python 3.8 or higher
@@ -45,11 +45,11 @@ The goal of this project is to provide a tool to efficiently build, train, and d
     pre-commit install
     ```
 
-## 4. Usage
+## Usage
 
 The project can be used via its command-line interface or its Python API.
 
-### 4.1. Command-Line Interface (CLI)
+### Command-Line Interface (CLI)
 
 The main CLI tool is `fso-pino-cli`. It has four primary commands:
 
@@ -76,10 +76,10 @@ Add the flag `--visualize` for a visual depiction of the irradiance map.
 #### `benchmark`
 Benchmark the performance (accuracy and speed) of a trained model against the physics simulation.
 ```bash
-fso-pino-cli benchmark  --model-path ./models/best_model.onnx --test-dataset ./data/test --output-dir ./benchmarks
+fso-pino-cli benchmark  --model-path ./models/best_model.pth --test-dataset ./data/test --output-dir ./benchmarks
 ```
 
-### 4.2. Python API
+### Python API
 
 The project can also be used as a Python library for more complex workflows.
 
@@ -106,11 +106,11 @@ metrics = model.compute_derived_metrics(input_params)
 print(f"PINO Predicted Scintillation Index: {metrics['scintillation_index'].item():.4f}")
 ```
 
-## 5. Mathematical Modeling
+## Mathematical Modeling
 
 The project's physics simulation and PINO model are based on the following mathematical principles:
 
-### 5.1. Parabolic Wave Equation (PWE)
+### Parabolic Wave Equation (PWE)
 The propagation of the laser beam is modeled by the Parabolic Wave Equation (PWE), an approximation of the Helmholtz equation suitable for paraxial beams:
 ```
 2ik₀ ∂ψ/∂z + ∇²_T ψ + 2k₀² [n(x,y,z)/n₀ - 1] ψ = 0
@@ -120,23 +120,23 @@ The propagation of the laser beam is modeled by the Parabolic Wave Equation (PWE
 - `∇²_T`: Transverse Laplacian operator.
 - `n(x,y,z)`: Refractive index of the medium.
 
-### 5.2. Split-Step Fourier Method (SSFM)
+### Split-Step Fourier Method (SSFM)
 The PWE is solved numerically using the SSFM, which splits the propagation into two steps for each segment of the path:
 1.  **Diffraction Step**: Solved in the Fourier domain to model free-space propagation.
 2.  **Refraction/Absorption Step**: Solved in the spatial domain to apply atmospheric effects.
 
-### 5.3. Atmospheric Effects
+### Atmospheric Effects
 - **Turbulence**: Modeled using the Kolmogorov turbulence theory. The strength is characterized by the refractive index structure parameter `Cₙ²`, calculated using the Hufnagel-Valley model. Turbulence is implemented as random phase screens applied to the beam.
 - **Fog Attenuation**: Modeled using the Kim model, which relates the attenuation coefficient to meteorological visibility and wavelength.
 
-### 5.4. Physics-Informed Neural Operator (PINO)
+### Physics-Informed Neural Operator (PINO)
 The PINO model's loss function combines data-driven learning with physical constraints:
 - **Data Loss**: The Mean Squared Error (MSE) between the model's prediction and the ground truth from the simulation.
 - **Physics Loss**: The residual of the Parabolic Wave Equation. This term penalizes predictions that violate the PWE, ensuring the model's output is physically consistent.
 
 The total loss is a weighted sum: `L_total = λ_data * L_data + λ_physics * L_physics`.
 
-## 6. Testing
+## Testing
 
 To run the test suite, use `pytest`:
 ```bash
@@ -147,9 +147,9 @@ To include code coverage:
 pytest --cov=fsoc_pino --cov-report=html
 ```
 
-## 7. License
+## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 8. Contact
+##Contact
 Hey! This project was developed by me: Harishvin Sasikumar! Check out my website [here](https://harishvin.framer.website).
 Email me at [harishsasi17@gmail.com](mailto:harishsasi17@gmail.com)
