@@ -76,7 +76,7 @@ Add the flag `--visualize` for a visual depiction of the irradiance map.
 #### `benchmark`
 Benchmark the performance (accuracy and speed) of a trained model against the physics simulation.
 ```bash
-fso-pino-cli benchmark  --model-path ./models/best_model.onnx --test-dataset ./data/test --output-dir ./benchmarks
+fso-pino-cli benchmark  --model-path ./models/best_model.pth --test-dataset ./data/test --output-dir ./benchmarks
 ```
 
 ### Python API
