@@ -49,7 +49,7 @@ The goal of this project is to provide a tool to efficiently build, train, and d
 
 The project can be used via its command-line interface or its Python API.
 
-### 4.1. Command-Line Interface (CLI)
+### Command-Line Interface (CLI)
 
 The main CLI tool is `fso-pino-cli`. It has four primary commands:
 
@@ -110,7 +110,7 @@ print(f"PINO Predicted Scintillation Index: {metrics['scintillation_index'].item
 
 The project's physics simulation and PINO model are based on the following mathematical principles:
 
-### 5.1. Parabolic Wave Equation (PWE)
+### Parabolic Wave Equation (PWE)
 The propagation of the laser beam is modeled by the Parabolic Wave Equation (PWE), an approximation of the Helmholtz equation suitable for paraxial beams:
 ```
 2ik₀ ∂ψ/∂z + ∇²_T ψ + 2k₀² [n(x,y,z)/n₀ - 1] ψ = 0
@@ -120,16 +120,16 @@ The propagation of the laser beam is modeled by the Parabolic Wave Equation (PWE
 - `∇²_T`: Transverse Laplacian operator.
 - `n(x,y,z)`: Refractive index of the medium.
 
-### 5.2. Split-Step Fourier Method (SSFM)
+### Split-Step Fourier Method (SSFM)
 The PWE is solved numerically using the SSFM, which splits the propagation into two steps for each segment of the path:
 1.  **Diffraction Step**: Solved in the Fourier domain to model free-space propagation.
 2.  **Refraction/Absorption Step**: Solved in the spatial domain to apply atmospheric effects.
 
-### 5.3. Atmospheric Effects
+### Atmospheric Effects
 - **Turbulence**: Modeled using the Kolmogorov turbulence theory. The strength is characterized by the refractive index structure parameter `Cₙ²`, calculated using the Hufnagel-Valley model. Turbulence is implemented as random phase screens applied to the beam.
 - **Fog Attenuation**: Modeled using the Kim model, which relates the attenuation coefficient to meteorological visibility and wavelength.
 
-### 5.4. Physics-Informed Neural Operator (PINO)
+### Physics-Informed Neural Operator (PINO)
 The PINO model's loss function combines data-driven learning with physical constraints:
 - **Data Loss**: The Mean Squared Error (MSE) between the model's prediction and the ground truth from the simulation.
 - **Physics Loss**: The residual of the Parabolic Wave Equation. This term penalizes predictions that violate the PWE, ensuring the model's output is physically consistent.
@@ -147,9 +147,9 @@ To include code coverage:
 pytest --cov=fsoc_pino --cov-report=html
 ```
 
-## 7. License
+## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 8. Contact
+##Contact
 Hey! This project was developed by me: Harishvin Sasikumar! Check out my website [here](https://harishvin.framer.website).
 Email me at [harishsasi17@gmail.com](mailto:harishsasi17@gmail.com)
