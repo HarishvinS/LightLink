@@ -42,21 +42,21 @@ from typing import Optional
     help="Device to use for inference"
 )
 @click.option(
-    "--run-simulation",
+    "--skip-simulation",
     is_flag=True,
-    help="Run physics simulations for comparison (slow)"
+    help="Skip physics simulations (PINO inference only)"
 )
 @click.option(
     "--metrics",
     multiple=True,
     type=click.Choice(["l2_error", "psnr", "ssim", "ber_error", "scintillation_error"]),
-    default=["l2_error", "psnr"],
+    default=["l2_error", "psnr", "ssim"],
     help="Metrics to compute for comparison"
 )
 @click.option(
-    "--generate-plots",
+    "--skip-plots",
     is_flag=True,
-    help="Generate comparison plots and visualizations"
+    help="Skip generating visualization plots"
 )
 @click.option(
     "--profile-memory",
@@ -76,17 +76,24 @@ def benchmark(
     output_dir: Path,
     num_samples: int,
     device: str,
-    run_simulation: bool,
+    skip_simulation: bool,
     metrics: tuple,
-    generate_plots: bool,
+    skip_plots: bool,
     profile_memory: bool,
     profile_cpu: bool
 ):
     """
-    Benchmark PINO model performance against physics simulations.
-    
-    This command compares the accuracy and speed of PINO predictions
-    against ground truth physics simulations.
+    Comprehensive benchmarking of PINO model performance.
+
+    This command provides a complete performance analysis including:
+    - PINO inference speed and accuracy
+    - Physics simulation comparison (by default)
+    - Comprehensive metrics (L2 error, PSNR, SSIM)
+    - Visualization plots and charts
+    - Performance profiling options
+
+    Use --skip-simulation for PINO-only benchmarking.
+    Use --skip-plots to disable visualization generation.
     """
     logger = ctx.obj['logger']
     logger.info("Starting PINO benchmarking...")
@@ -100,7 +107,8 @@ def benchmark(
     logger.info(f"Output directory: {output_dir}")
     logger.info(f"Number of samples: {num_samples}")
     logger.info(f"Metrics: {list(metrics)}")
-    logger.info(f"Run simulation: {run_simulation}")
+    logger.info(f"Skip simulation: {skip_simulation}")
+    logger.info(f"Skip plots: {skip_plots}")
     
     try:
         # Import required modules (will be implemented in later phases)
@@ -123,14 +131,24 @@ def benchmark(
             import onnxruntime as ort
             session = ort.InferenceSession(str(model_path))
             model_type = "onnx"
+            # Get model grid size from ONNX model output shape
+            model_grid_size = session.get_outputs()[0].shape[-1]  # Assuming last dimension is spatial
         elif model_path.suffix == ".pt":
             # Load TorchScript model
             model = torch.jit.load(str(model_path), map_location=device)
             model.eval()
             model_type = "torchscript"
+            # Get model grid size from a test input
+            test_input = torch.zeros(1, 10).to(device)  # Assuming 10 input parameters
+            with torch.no_grad():
+                test_output = model(test_input)
+                model_grid_size = test_output.shape[-1]
         else:
             model = PINO_FNO.load(model_path, device=device)
             model_type = "pytorch"
+            model_grid_size = model.input_resolution
+
+        logger.info(f"Model grid size: {model_grid_size}")
         
         # Load test data
         if test_dataset:
@@ -143,9 +161,9 @@ def benchmark(
             # Generate random test parameters
             np.random.seed(42)
             test_parameters = np.random.uniform(
-                low=[1.0, 0.5, 0.01, 0.02, 850e-9],
-                high=[5.0, 10.0, 0.2, 0.10, 1550e-9],
-                size=(num_samples, 5)
+                low=[1.0, 850e-9, 0.02, 0.5, 0.01, 950.0, 0.0, 0.2, 0.0, 0.0],
+                high=[5.0, 1550e-9, 0.10, 10.0, 0.2, 1050.0, 30.0, 0.9, 100.0, 100.0],
+                size=(num_samples, 10)
             )
             test_targets = None
         
@@ -184,9 +202,13 @@ def benchmark(
         results['pino_inference_times'] = pino_times
         avg_pino_time = np.mean(pino_times)
         logger.info(f"Average PINO inference time: {avg_pino_time:.4f} seconds")
+
+        # Initialize simulation variables
+        avg_sim_time = None
+        speedup = None
         
-        # Run physics simulations if requested
-        if run_simulation:
+        # Run physics simulations by default (unless skipped)
+        if not skip_simulation:
             logger.info("Running physics simulations...")
             sim_times = []
             
@@ -195,10 +217,16 @@ def benchmark(
                 
                 simulator = FSOC_Simulator(
                     link_distance=params[0],
-                    visibility=params[1],
-                    temp_gradient=params[2],
-                    beam_waist=params[3],
-                    wavelength=params[4]
+                    wavelength=params[1],
+                    beam_waist=params[2],
+                    visibility=params[3],
+                    temp_gradient=params[4],
+                    pressure_hpa=params[5],
+                    temperature_celsius=params[6],
+                    humidity=params[7],
+                    altitude_tx_m=params[8],
+                    altitude_rx_m=params[9],
+                    grid_size=model_grid_size
                 )
                 
                 sim_result = simulator.run_simulation()
@@ -245,13 +273,13 @@ def benchmark(
         with open(metrics_file, 'w') as f:
             json.dump({
                 'avg_pino_time': avg_pino_time,
-                'avg_simulation_time': avg_sim_time if run_simulation else None,
-                'speedup_factor': speedup if run_simulation else None,
+                'avg_simulation_time': avg_sim_time if not skip_simulation else None,
+                'speedup_factor': speedup if not skip_simulation else None,
                 'accuracy_metrics': results['metrics']
             }, f, indent=2)
         
-        # Generate plots if requested
-        if generate_plots:
+        # Generate plots by default (unless skipped)
+        if not skip_plots:
             logger.info("Generating benchmark plots...")
             plot_benchmark_results(results, output_dir)
         
@@ -259,11 +287,11 @@ def benchmark(
         logger.info(f"Benchmarking completed successfully!")
         logger.info(f"Results saved to: {output_dir}")
         logger.info(f"Average PINO inference time: {avg_pino_time:.4f} seconds")
-        
-        if run_simulation:
+
+        if not skip_simulation:
             logger.info(f"Average simulation time: {avg_sim_time:.2f} seconds")
             logger.info(f"Speedup factor: {speedup:.1f}x")
-            
+
             for metric_name, metric_value in results['metrics'].items():
                 logger.info(f"{metric_name}: {metric_value:.6f}")
         

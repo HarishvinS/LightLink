@@ -298,3 +298,69 @@ def plot_prediction_comparison(
         print(f"Comparison plot saved to: {save_path}")
     
     plt.show()
+
+
+def plot_benchmark_results(
+    results: Dict[str, Any],
+    output_dir: Path,
+    figsize: Tuple[int, int] = (15, 10),
+    dpi: int = 150
+) -> None:
+    """
+    Generate comprehensive benchmark plots comparing PINO predictions to simulations.
+
+    Args:
+        results: Dictionary containing benchmark results
+        output_dir: Directory to save plots
+        figsize: Figure size (width, height)
+        dpi: Figure DPI for saving
+    """
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Plot 1: Inference time comparison
+    if 'pino_inference_times' in results and 'simulation_times' in results:
+        plt.figure(figsize=(12, 6))
+
+        plt.subplot(1, 2, 1)
+        plt.hist(results['pino_inference_times'], bins=20, alpha=0.7, label='PINO', color='blue')
+        plt.xlabel('Inference Time (s)')
+        plt.ylabel('Frequency')
+        plt.title('PINO Inference Time Distribution')
+        plt.legend()
+
+        plt.subplot(1, 2, 2)
+        if results['simulation_times']:
+            plt.hist(results['simulation_times'], bins=20, alpha=0.7, label='Simulation', color='red')
+            plt.xlabel('Simulation Time (s)')
+            plt.ylabel('Frequency')
+            plt.title('Physics Simulation Time Distribution')
+            plt.legend()
+
+        plt.tight_layout()
+        plt.savefig(output_dir / "timing_comparison.png", dpi=dpi, bbox_inches='tight')
+        plt.close()
+
+    # Plot 2: Accuracy metrics
+    if 'metrics' in results and results['metrics']:
+        metrics = results['metrics']
+        metric_names = list(metrics.keys())
+        metric_values = list(metrics.values())
+
+        plt.figure(figsize=(10, 6))
+        bars = plt.bar(metric_names, metric_values, color=['skyblue', 'lightcoral', 'lightgreen'][:len(metric_names)])
+        plt.xlabel('Metrics')
+        plt.ylabel('Value')
+        plt.title('Benchmark Accuracy Metrics')
+        plt.xticks(rotation=45)
+
+        # Add value labels on bars
+        for bar, value in zip(bars, metric_values):
+            plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                    f'{value:.4f}', ha='center', va='bottom')
+
+        plt.tight_layout()
+        plt.savefig(output_dir / "accuracy_metrics.png", dpi=dpi, bbox_inches='tight')
+        plt.close()
+
+    print(f"Benchmark plots saved to {output_dir}")
