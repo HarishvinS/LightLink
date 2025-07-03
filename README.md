@@ -1,6 +1,6 @@
 # Lightlink: Physics-Informed Neural Operators for FSOC Link Performance Prediction
 
-## 1. Project Goal
+## Overview
 
 LightLink is a toolkit for utilzing and training Physics-Informed Neural Operators (PINOs) for real-time performance prediction on edge computing devices. Currently, the system generates synthetic data using high fidelity physics simulations. This data is used to train PINOs that can predict FSOC link behaviour and performance in real time.
 
@@ -8,7 +8,7 @@ Physics Informed Neural Operators are neural operators that adhere to physics at
 
 The goal of this project is to provide a tool to efficiently build, train, and deploy PINOs to edge-computing devices (e.g Raspberry Pi, NVIDIA Jetson Nano) located at physical FSOC stations to optimize their operation in real time. Furthermore, a network of edge devices, connected by a protocol such as LoRaWAN, can coordinate and correct for overall optimized data transmission rates. 
 
-## 2. Key Features
+## Key Features
 
 - **High-Fidelity Physics Simulation**: Accurate beam propagation modeling using the Parabolic Wave Equation (PWE) and Split-Step Fourier Method (SSFM).
 - **Atmospheric Effects Modeling**: Accounts for turbulence (from temperature gradients) and fog attenuation.
@@ -17,7 +17,7 @@ The goal of this project is to provide a tool to efficiently build, train, and d
 - **Comprehensive CLI**: An easy-to-use command-line interface for dataset generation, model training, prediction, and benchmarking.
 - **Python API**: A full-featured Python API for programmatic control and integration.
 
-## 3. Installation
+## Installation
 
 ### Prerequisites
 - Python 3.8 or higher
@@ -45,7 +45,7 @@ The goal of this project is to provide a tool to efficiently build, train, and d
     pre-commit install
     ```
 
-## 4. Usage
+## Usage
 
 The project can be used via its command-line interface or its Python API.
 
@@ -79,7 +79,7 @@ Benchmark the performance (accuracy and speed) of a trained model against the ph
 fso-pino-cli benchmark  --model-path ./models/best_model.onnx --test-dataset ./data/test --output-dir ./benchmarks
 ```
 
-### 4.2. Python API
+### Python API
 
 The project can also be used as a Python library for more complex workflows.
 
@@ -106,7 +106,7 @@ metrics = model.compute_derived_metrics(input_params)
 print(f"PINO Predicted Scintillation Index: {metrics['scintillation_index'].item():.4f}")
 ```
 
-## 5. Mathematical Modeling
+## Mathematical Modeling
 
 The project's physics simulation and PINO model are based on the following mathematical principles:
 
@@ -136,7 +136,7 @@ The PINO model's loss function combines data-driven learning with physical const
 
 The total loss is a weighted sum: `L_total = λ_data * L_data + λ_physics * L_physics`.
 
-## 6. Testing
+## Testing
 
 To run the test suite, use `pytest`:
 ```bash
