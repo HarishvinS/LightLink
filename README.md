@@ -8,14 +8,16 @@ Physics Informed Neural Operators are neural operators that adhere to physics at
 
 The goal of this project is to provide a tool to efficiently build, train, and deploy PINOs to edge-computing devices (e.g Raspberry Pi, NVIDIA Jetson Nano) located at physical FSOC stations to optimize their operation in real time. Furthermore, a network of edge devices, connected by a protocol such as LoRaWAN, can coordinate and correct for overall optimized data transmission rates. 
 
-## Key Features
+## What it does
 
-- **High-Fidelity Physics Simulation**: Accurate beam propagation modeling using the Parabolic Wave Equation (PWE) and Split-Step Fourier Method (SSFM).
-- **Atmospheric Effects Modeling**: Accounts for turbulence (from temperature gradients) and fog attenuation.
-- **Physics-Informed Learning**: A PINO architecture that respects physical laws (PWE) during training for more accurate and generalizable predictions.
-- **Edge Deployment Ready**: Trained models can be exported to ONNX format for efficient inference on resource-constrained edge devices. PyTorch and Torchscript export are also supported but are used as fallbacks by default.
+- **Performs high-fidelity physics simulations**: Accurate beam propagation modeling using the Parabolic Wave Equation (PWE) and Split-Step Fourier Method (SSFM).  Accounts for turbulence (from temperature           gradients) and fog attenuation.
+- **Trains a PINO model**: Useing the data from the physics sims, it trains a PINO architecture that respects physical laws (e.g. Parabolic Wave Equations) during training for more accurate and generalizable         predictions.
+- **Preps models for deployment**: The trained PINO models can be exported in ONNX, PyTorch, and TorchScript compatible formats, allowing for easier deployment.
+- 
+### Other important things
+
 - **Comprehensive CLI**: An easy-to-use command-line interface for dataset generation, model training, prediction, and benchmarking.
-- **Python API**: A full-featured Python API for programmatic control and integration.
+- **Python API**: A Python API for programmatic control and integration.
 
 ## Installation
 
@@ -121,13 +123,13 @@ The propagation of the laser beam is modeled by the Parabolic Wave Equation (PWE
 - `n(x,y,z)`: Refractive index of the medium.
 
 ### Split-Step Fourier Method (SSFM)
-The PWE is solved numerically using the SSFM, which splits the propagation into two steps for each segment of the path:
-1.  **Diffraction Step**: Solved in the Fourier domain to model free-space propagation.
+The PWE is solved numerically using the SSFM (Split Step Fourier Method), which splits the propagation into two steps for each segment of the path:
+1.  **Diffraction Step**: Solved in the Fourier domain to model free-space propagation (aka no atmospheric effects are applied)
 2.  **Refraction/Absorption Step**: Solved in the spatial domain to apply atmospheric effects.
 
 ### Atmospheric Effects
-- **Turbulence**: Modeled using the Kolmogorov turbulence theory. The strength is characterized by the refractive index structure parameter `Cₙ²`, calculated using the Hufnagel-Valley model. Turbulence is implemented as random phase screens applied to the beam.
-- **Fog Attenuation**: Modeled using the Kim model, which relates the attenuation coefficient to meteorological visibility and wavelength.
+- **Turbulence**: Modeled using the Kolmogorov turbulence theory. The strength is characterized by the refractive index structure parameter `Cₙ²`, calculated using the Hufnagel-Valley model (note: still personally leanring the more nuanced physics at this step). Turbulence is implemented as random phase screens applied to the beam.
+- **Fog Attenuation**: Modeled using the Kim model, which relates the attenuation coefficient to meteorological visibility and wavelength. (note: atmospheric physics was harder than expected. still also figuring out nuanced implementation and structure.)
 
 ### Physics-Informed Neural Operator (PINO)
 The PINO model's loss function combines data-driven learning with physical constraints:
