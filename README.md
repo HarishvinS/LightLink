@@ -1,4 +1,4 @@
-# Lightlink: Physics-Informed Neural Operators for FSOC Link Performance Prediction
+# Lightlink: Physics-Informed Neural Operators for optimzing FSOC Links.
 
 ## Overview
 
