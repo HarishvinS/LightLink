@@ -150,8 +150,8 @@ pytest --cov=fsoc_pino --cov-report=html
 ```
 
 ## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Creative Commons Zero v1.0 Universal - see the [LICENSE](LICENSE) file for details.
 
 ## Contact
-Hey! This project was developed by me: Harishvin Sasikumar! Check out my website [here](https://harishvin.framer.website).
+Hey! This project was developed by Harishvin Sasikumar. Learn more [here](https://harishvin.framer.website).
 Email me at [harishsasi17@gmail.com](mailto:harishsasi17@gmail.com)
