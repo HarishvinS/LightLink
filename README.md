@@ -4,7 +4,7 @@
 
 LightLink is a toolkit for utilzing and training Physics-Informed Neural Operators (PINOs) for real-time performance prediction on edge computing devices. Currently, the system generates synthetic data using high fidelity physics simulations. This data is used to train PINOs that can predict FSOC link behaviour and performance in real time.
 
-Physics Informed Neural Operators are neural operators that adhere to physics at greater rate than traditional machine learning methods. They are able to accomplish this as they are designed to learn mappings between funciton spaces while penalizing results that violate the underlying physics equations during training. This allows them to accurate predictions even on limited datasets or inputs as they take into account the underlying physics of the system.
+Physics Informed Neural Operators are neural operators that adhere to physics at greater rate than traditional machine learning methods. They are able to accomplish this as they are designed to learn mappings between funciton spaces while penalizing results that violate the underlying physics equations during training. This allows them to make accurate predictions even on limited datasets or inputs as they take into account the underlying physics of the system.
 
 The goal of this project is to provide a tool to efficiently build, train, and deploy PINOs to edge-computing devices (e.g Raspberry Pi, NVIDIA Jetson Nano) located at physical FSOC stations to optimize their operation in real time. Furthermore, a network of edge devices, connected by a protocol such as LoRaWAN, can coordinate and correct for overall optimized data transmission rates. 
 
